@@ -1,16 +1,16 @@
 // Use environment variable, or fallback to production URL, then localhost for dev
 const getBaseUrl = () => {
-  // If running on client side, use relative path (Next.js Proxy)
-  if (typeof window !== 'undefined') {
-    return '';
-  }
-
-  // Check env var (for localhost or server-side)
+  // Check env var (for both client and server side since it's NEXT_PUBLIC)
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
   
-  // Fallback
+  // If not set, return relative path for client side to use proxy
+  if (typeof window !== 'undefined') {
+    return '';
+  }
+  
+  // Fallback for server-side
   return 'https://server-trr-rp.vercel.app';
 };
 
