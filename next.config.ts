@@ -25,11 +25,11 @@ const nextConfig: NextConfig = {
       afterFiles: [
         {
           source: "/api/:path*",
-          destination: `${process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'development' ? "http://127.0.0.1:3000" : "https://rp-trr-ku-csc-server-smoky.vercel.app")}/api/:path*`,
+          destination: `${process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'development' ? "http://127.0.0.1:3000" : "https://server-trr-rp.vercel.app")}/api/:path*`,
         },
         {
           source: "/uploads/:path*",
-          destination: `${process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'development' ? "http://127.0.0.1:3000" : "https://rp-trr-ku-csc-server-smoky.vercel.app")}/uploads/:path*`,
+          destination: `${process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'development' ? "http://127.0.0.1:3000" : "https://server-trr-rp.vercel.app")}/uploads/:path*`,
         },
       ],
     };
