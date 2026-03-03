@@ -1,0 +1,3 @@
+module.exports=[10179,a=>{"use strict";var b=a.i(87924),c=a.i(72131),d=a.i(50944);function e(){let a=(0,d.useRouter)();return(0,c.useEffect)(()=>{a.replace("/admin/dashboard")},[a]),(0,b.jsx)("div",{className:"min-h-screen bg-gray-100 flex items-center justify-center",children:(0,b.jsx)("div",{className:"text-gray-500",children:"กำลังโหลด..."})})}a.s(["default",()=>e])}];
+
+//# sourceMappingURL=src_app_admin_page_tsx_645532da._.js.map

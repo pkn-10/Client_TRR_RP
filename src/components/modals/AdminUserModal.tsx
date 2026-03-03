@@ -1,0 +1,294 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import {
+  X,
+  Loader2,
+  Eye,
+  EyeOff,
+  User,
+  Mail,
+  Shield,
+  Phone,
+} from "lucide-react";
+import { User as UserType } from "@/services/userService";
+
+interface AdminUserModalProps {
+  user: UserType | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (data: Partial<UserType>) => Promise<void>;
+}
+
+export default function AdminUserModal({
+  user,
+  isOpen,
+  onClose,
+  onSave,
+}: AdminUserModalProps) {
+  const [formData, setFormData] = useState<Partial<UserType>>({});
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const isEditMode = !!user;
+
+  useEffect(() => {
+    if (isOpen) {
+      if (user) {
+        setFormData({
+          name: user.name || "",
+          email: user.email || "",
+          role: user.role || "IT",
+          department: user.department || "",
+          phoneNumber: user.phoneNumber || "",
+          lineId: user.lineId || "",
+        });
+      } else {
+        setFormData({
+          name: "",
+          email: "",
+          role: "IT",
+          department: "",
+          phoneNumber: "",
+          lineId: "",
+        });
+      }
+      setPassword("");
+      setConfirmPassword("");
+      setErrors({});
+    }
+  }, [user, isOpen]);
+
+  const validate = useCallback(() => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.name?.trim()) {
+      newErrors.name = "กรุณากรอกชื่อ";
+    }
+
+    if (!formData.email?.trim()) {
+      newErrors.email = "กรุณากรอกอีเมล";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = "รูปแบบอีเมลไม่ถูกต้อง";
+    }
+
+    if (!isEditMode && !password) {
+      newErrors.password = "กรุณากรอกรหัสผ่าน";
+    }
+
+    if (password && password.length < 6) {
+      newErrors.password = "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร";
+    }
+
+    if (password && password !== confirmPassword) {
+      newErrors.confirmPassword = "รหัสผ่านไม่ตรงกัน";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }, [formData, password, confirmPassword, isEditMode]);
+
+  const handleSubmit = async () => {
+    if (!validate()) return;
+
+    setIsLoading(true);
+    try {
+      const dataToSave = { ...formData };
+      if (password) {
+        (dataToSave as any).password = password;
+      }
+      await onSave(dataToSave);
+      onClose();
+    } catch (err) {
+      console.error("Save failed:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 fade-in duration-200">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-slate-100">
+          <div className="flex items-center gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">
+                {isEditMode ? "แก้ไขผู้ใช้" : "เพิ่มผู้ใช้ใหม่"}
+              </h2>
+              <p className="text-xs text-slate-500">
+                {isEditMode ? `ID: ${user?.id}` : "กรอกข้อมูลด้านล่าง"}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={isLoading}
+            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-6 max-h-[60vh] overflow-y-auto">
+          <div className="space-y-4">
+            {/* Name */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                ชื่อ<span className="text-rose-500">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={formData.name || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  className={`w-full px-4 py-2.5 rounded-xl border ${
+                    errors.name
+                      ? "border-rose-300 bg-rose-50"
+                      : "border-slate-200"
+                  } focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm`}
+                  placeholder="ชื่อ นามสกุล"
+                />
+              </div>
+              {errors.name && (
+                <p className="text-xs text-rose-500 mt-1">{errors.name}</p>
+              )}
+            </div>
+
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                อีเมล <span className="text-rose-500">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="email"
+                  value={formData.email || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
+                  className={`w-full px-4 py-2.5 rounded-xl border ${
+                    errors.email
+                      ? "border-rose-300 bg-rose-50"
+                      : "border-slate-200"
+                  } focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm`}
+                  placeholder="email@example.com"
+                />
+              </div>
+              {errors.email && (
+                <p className="text-xs text-rose-500 mt-1">{errors.email}</p>
+              )}
+            </div>
+
+            {/* Role */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                บทบาท <span className="text-rose-500">*</span>
+              </label>
+              <div className="relative">
+                <select
+                  value={formData.role || "IT"}
+                  onChange={(e) =>
+                    setFormData({ ...formData, role: e.target.value as any })
+                  }
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm appearance-none bg-white cursor-pointer"
+                >
+                  <option value="IT">ทีมไอที</option>
+                  <option value="ADMIN">ผู้ดูแลระบบ</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Password Section */}
+            <div className="pt-4 border-t border-slate-100">
+              <h4 className="text-sm font-semibold text-slate-700 mb-3">
+                {isEditMode ? "เปลี่ยนรหัสผ่าน (ไม่บังคับ)" : "รหัสผ่าน"}
+              </h4>
+              <div className="space-y-3">
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className={`w-full px-4 py-2.5 rounded-xl border ${
+                      errors.password
+                        ? "border-rose-300 bg-rose-50"
+                        : "border-slate-200"
+                    } focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm pr-10`}
+                    placeholder="รหัสผ่าน"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="text-xs text-rose-500">{errors.password}</p>
+                )}
+
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className={`w-full px-4 py-2.5 rounded-xl border ${
+                    errors.confirmPassword
+                      ? "border-rose-300 bg-rose-50"
+                      : "border-slate-200"
+                  } focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm`}
+                  placeholder="ยืนยันรหัสผ่าน"
+                />
+                {errors.confirmPassword && (
+                  <p className="text-xs text-rose-500">
+                    {errors.confirmPassword}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50">
+          <button
+            onClick={onClose}
+            disabled={isLoading}
+            className="px-5 py-2.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-xl transition-all shadow-md hover:shadow-lg"
+          >
+            ยกเลิก
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isLoading}
+            className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2 shadow-lg shadow-blue-200 transition-all disabled:opacity-50"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                กำลังบันทึก...
+              </>
+            ) : (
+              "บันทึก"
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

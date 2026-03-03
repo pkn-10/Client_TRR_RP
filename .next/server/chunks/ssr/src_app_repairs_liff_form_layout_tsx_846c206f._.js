@@ -1,0 +1,3 @@
+module.exports=[78050,a=>{"use strict";var b=a.i(7997);function c({children:a}){return(0,b.jsx)(b.Fragment,{children:a})}a.s(["default",()=>c,"metadata",0,{title:"TRR IT Support | ระบบแจ้งซ่อมออนไลน์",description:"ระบบแจ้งซ่อมอุปกรณ์ IT สำหรับพนักงาน TRR - รวดเร็ว สะดวก ติดตามสถานะได้ตลอดเวลา",openGraph:{title:"TRR IT Support | ระบบแจ้งซ่อมออนไลน์",description:"ระบบแจ้งซ่อมอุปกรณ์ IT สำหรับพนักงาน TRR - รวดเร็ว สะดวก ติดตามสถานะได้ตลอดเวลา",type:"website"}}])}];
+
+//# sourceMappingURL=src_app_repairs_liff_form_layout_tsx_846c206f._.js.map
