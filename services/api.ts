@@ -11,7 +11,7 @@ const getBaseUrl = () => {
   }
   
   // Fallback
-  return 'https://rp-trr-ku-csc-server-smoky.vercel.app';
+  return 'https://server-trr-rp.vercel.app';
 };
 
 const API_URL = getBaseUrl();
