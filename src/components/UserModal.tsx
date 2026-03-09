@@ -1,3 +1,4 @@
+// ===== จัดการผู้ใช้ | User Modal Component =====
 "use client";
 
 import { useState, useEffect } from "react";
@@ -351,14 +352,6 @@ export default function UserModal({
 
         {/* Footer */}
         <div className="p-4 bg-gray-50 border-t border-gray-200 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isLoading}
-            className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50"
-          >
-            ยกเลิก
-          </button>
           <button
             onClick={handleSubmit}
             disabled={isLoading}

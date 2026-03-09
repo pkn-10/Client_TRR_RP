@@ -26,7 +26,7 @@ interface LineOALink {
   lineUserId: string;
   displayName: string;
   pictureUrl?: string;
-  status: "PENDING" | "VERIFIED" | "UNLINKED";
+  status: "รอการยืนยัน" | "ยืนยันแล้ว" | "ยกเลิก";
   linkedAt: string;
 }
 
@@ -34,7 +34,7 @@ interface UserProfile {
   id: number;
   name: string;
   email: string;
-  role: "USER" | "IT" | "ADMIN";
+  role: "ไอที" | "แอดมิน";
   department?: string;
   profilePicture?: string;
   createdAt: string;
@@ -96,7 +96,7 @@ export default function ITProfilePage() {
         setLineLink(null);
       }
     } catch (error) {
-      console.error("Failed to fetch LINE link status:", error);
+      console.error("เกิดข้อผิดพลาดในการเชื่อมต่อ LINE:", error);
     } finally {
       setLineLinkLoading(false);
     }
@@ -124,7 +124,7 @@ export default function ITProfilePage() {
         window.open(finalUrl, "_blank");
       }
     } catch (error) {
-      console.error("Failed to initiate LINE linking:", error);
+      console.error("เกิดข้อผิดพลาดในการเชื่อมต่อ LINE:", error);
       alert("เกิดข้อผิดพลาดในการเชื่อมต่อ LINE");
     } finally {
       setLinkingInProgress(false);
@@ -139,7 +139,7 @@ export default function ITProfilePage() {
       await apiFetch(`/line-oa/linking/unlink?userId=${profile.id}`, "DELETE");
       setLineLink(null);
     } catch (error) {
-      console.error("Failed to unlink LINE account:", error);
+      console.error("เกิดข้อผิดพลาดในการยกเลิกการเชื่อมต่อ LINE:", error);
     }
   };
 
@@ -149,7 +149,7 @@ export default function ITProfilePage() {
       setProfile(data);
       setIsEditing(false);
     } catch (error) {
-      console.error("Failed to update profile:", error);
+      console.error("เกิดข้อผิดพลาดในการอัปเดตโปรไฟล์:", error);
     }
   };
 
@@ -187,7 +187,7 @@ export default function ITProfilePage() {
         setProfile(updatedProfile);
       }
     } catch (error) {
-      console.error("Failed to upload profile picture:", error);
+      console.error("เกิดข้อผิดพลาดในการอัปโหลดรูปโปรไฟล์:", error);
     } finally {
       setUploadingPicture(false);
     }
@@ -247,7 +247,7 @@ export default function ITProfilePage() {
                 {profile.name}
               </h1>
               <p className="text-white/80 mt-1 font-light">
-                บัญชีผู้ใช้ IT Support
+                บัญชีไอที
               </p>
             </div>
           </div>
@@ -302,7 +302,6 @@ export default function ITProfilePage() {
                   />
                 ) : (
                   <div className="flex items-center gap-3 px-4 py-3 bg-[#EEEEEE] rounded-lg">
-                    <User size={20} className="text-gray-500" />
                     <span className="text-gray-700">{profile.name}</span>
                   </div>
                 )}
@@ -314,34 +313,8 @@ export default function ITProfilePage() {
                   อีเมล
                 </label>
                 <div className="flex items-center gap-3 px-4 py-3 bg-[#EEEEEE] rounded-lg">
-                  <Mail size={20} className="text-gray-500" />
                   <span className="text-gray-700">{profile.email}</span>
                 </div>
-              </div>
-
-              {/* Department */}
-              <div>
-                <label className="block text-lg font-medium text-gray-800 mb-2">
-                  แผนก
-                </label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    value={editData.department}
-                    onChange={(e) =>
-                      setEditData({ ...editData, department: e.target.value })
-                    }
-                    placeholder="ไม่ระบุ"
-                    className="w-full px-4 py-3 bg-[#EEEEEE] border-none rounded-lg focus:ring-2 focus:ring-[#4A3B32]"
-                  />
-                ) : (
-                  <div className="flex items-center gap-3 px-4 py-3 bg-[#EEEEEE] rounded-lg">
-                    <Building size={20} className="text-gray-500" />
-                    <span className="text-gray-700">
-                      {profile.department || "ไม่ระบุ"}
-                    </span>
-                  </div>
-                )}
               </div>
 
               {/* Role */}
@@ -350,9 +323,8 @@ export default function ITProfilePage() {
                   บทบาท
                 </label>
                 <div className="flex items-center gap-3 px-4 py-3 bg-[#EEEEEE] rounded-lg">
-                  <Shield size={20} className="text-gray-500" />
-                  <span className="bg-[#C8E6C9] text-gray-800 text-sm px-3 py-1 rounded-full font-medium">
-                    {profile.role === "IT" ? "IT Support" : profile.role}
+                  <span className="text-gray-700">
+                    {profile.role === "ไอที" ? "ไอที" : profile.role}
                   </span>
                 </div>
               </div>
@@ -371,7 +343,6 @@ export default function ITProfilePage() {
                   onClick={handleSave}
                   className="flex items-center gap-2 px-6 py-2 bg-[#4A3B32] text-white rounded-lg hover:bg-[#3E3129] transition-colors"
                 >
-                  <Save size={18} />
                   <span>บันทึก</span>
                 </button>
               </div>

@@ -1,3 +1,4 @@
+// ===== จัดการผู้ใช้ | User Management (Admin) =====
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -148,9 +149,6 @@ export default function AdminUsersPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
               />
-              <button className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300">
-                ค้นหา
-              </button>
             </div>
 
             {/* Role Filter */}
@@ -174,7 +172,7 @@ export default function AdminUsersPage() {
               className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-sm hover:bg-gray-50 flex items-center gap-1"
             >
               <UserPlus size={16} />
-              เพิ่มทีม IT
+              เพิ่มสมาชิก
             </button>
             <button className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-sm hover:bg-gray-50">
               Export reprot
@@ -191,13 +189,10 @@ export default function AdminUsersPage() {
                   ชื่อ
                 </th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-600">
-                  ข้อมูลติดต่อ
+                  อีเมล
                 </th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-600">
                   บทบาท
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-600">
-                  แผนก
                 </th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-600 text-right">
                   จัดการ
@@ -222,11 +217,7 @@ export default function AdminUsersPage() {
                       {getRoleLabel(user.role)}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm text-gray-700">
-                      {user.department || "-"}
-                    </span>
-                  </td>
+                
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
@@ -273,9 +264,6 @@ export default function AdminUsersPage() {
               </div>
               <p className="text-xs text-gray-500 mb-1">
                 {user.phoneNumber || user.email}
-              </p>
-              <p className="text-xs text-gray-500">
-                แผนก: {user.department || "-"}
               </p>
               <div className="flex justify-end gap-2 mt-3 pt-3 border-t border-gray-100">
                 <button

@@ -27,9 +27,7 @@ export default function EditUserPage() {
           name: user.name || "",
           email: user.email || "",
           role: user.role || "IT",
-          department: user.department || "",
           phoneNumber: user.phoneNumber || "",
-          lineId: user.lineId || "",
         });
       } catch (error) {
         console.error("Failed to fetch user:", error);
@@ -80,11 +78,11 @@ export default function EditUserPage() {
         await userService.changePassword(userId, password);
       }
 
-      await Swal.fire("Success", "บันทึกข้อมูลเรียบร้อยแล้ว", "success");
+      await Swal.fire("สำเร็จ", "บันทึกข้อมูลเรียบร้อยแล้ว", "success");
       router.push("/admin/users");
     } catch (err) {
       console.error("Save failed:", err);
-      Swal.fire("Error", "เกิดข้อผิดพลาดในการบันทึกข้อมูล", "error");
+      Swal.fire("ผิดพลาด", "เกิดข้อผิดพลาดในการบันทึกข้อมูล", "error");
     } finally {
       setIsSaving(false);
     }
@@ -189,21 +187,7 @@ export default function EditUserPage() {
                   </div>
                 </div>
 
-                {/* Department */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    แผนก
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.department || ""}
-                    onChange={(e) =>
-                      setFormData({ ...formData, department: e.target.value })
-                    }
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="เช่น ไอที บัญชี ฝ่ายอ้อย"
-                  />
-                </div>
+            
 
                 {/* Phone */}
                 <div>
@@ -224,22 +208,6 @@ export default function EditUserPage() {
                       placeholder="08X-XXX-XXXX"
                     />
                   </div>
-                </div>
-
-                {/* LINE ID */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    LINE ID
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.lineId || ""}
-                    onChange={(e) =>
-                      setFormData({ ...formData, lineId: e.target.value })
-                    }
-                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="@LlineID"
-                  />
                 </div>
               </div>
             </div>

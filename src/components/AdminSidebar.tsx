@@ -1,3 +1,4 @@
+// ===== แถบเมนูข้างแอดมิน | Admin Sidebar Component =====
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
@@ -25,7 +26,7 @@ import {
   ChevronRight,
   Settings,
   UserRoundCog,
-  ClipboardClock
+  ClipboardClock,
 } from "lucide-react";
 import { userService, User as UserType } from "@/services/userService";
 import { useSidebar } from "@/context/SidebarContext";
@@ -81,14 +82,19 @@ export default function AdminSidebar() {
     { icon: LayoutDashboard, label: "แดชบอร์ด", href: "/admin/dashboard" },
     { icon: Wrench, label: "รายการซ่อมทั้งหมด", href: "/admin/repairs" },
     // { icon: Wrench, label: "งานของฉัน", href: "/admin/repairs?filter=mine" },
-        { icon:ClipboardClock,label: "รายการยืมทั้งหมด", href: "/admin/loans" },
-        // { icon:ClipboardList,label: "เช็คสต็อก", href: "/admin/stock" },
+    { icon: ClipboardClock, label: "รายการยืมทั้งหมด", href: "/admin/loans" },
+    // { icon:ClipboardList,label: "เช็คสต็อก", href: "/admin/stock" },
+    { icon: UserRoundCog, label: "จัดการสมาชิก", href: "/admin/users" },
+    { icon: Users, label: "จัดการแผนก", href: "/admin/departments" },
     {
       icon: Settings,
       label: "ตั้งค่า",
       subItems: [
-        { icon: UserRoundCog, label: "จัดการสมาชิก", href: "/admin/users" },
-        { icon: Users, label: "จัดการแผนก", href: "/admin/departments" },
+        {
+          icon: Database,
+          label: "จัดการข้อมูลรายการแจ้งซ่อม",
+          href: "/admin/repairs-management",
+        },
       ],
     },
   ];
@@ -117,7 +123,6 @@ export default function AdminSidebar() {
     );
   }, []);
 
-  
   useEffect(() => {
     menuItems.forEach((item) => {
       if (item.subItems) {
@@ -145,17 +150,19 @@ export default function AdminSidebar() {
     <>
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#795548] z-50 px-4 flex items-center justify-between shadow-sm">
-        <Link href="/admin/dashboard" className="flex items-center gap-2">
-          <span className="font-bold text-white text-lg tracking-wide">
-            TRR-RP
-          </span>
-        </Link>
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
         >
           {isOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
+        <Link href="/admin/dashboard" className="flex items-center gap-2">
+          <span className="font-bold text-white text-lg tracking-wide">
+            TRR-RP
+          </span>
+        </Link>
+        {/* Placeholder to balance the layout if needed, or just let it be justified */}
+        <div className="w-10"></div>
       </div>
 
       {/* Overlay */}
@@ -228,7 +235,7 @@ export default function AdminSidebar() {
                         className={`${active ? "text-[#795548]" : "text-gray-500"}`}
                       />
                       {!isCollapsed || isOpen ? (
-                        <span className="text-sm font-medium">
+                        <span className="text-base font-medium">
                           {item.label}
                         </span>
                       ) : null}
@@ -293,7 +300,7 @@ export default function AdminSidebar() {
                   className={`${active ? "text-[#795548]" : "text-gray-500"}`}
                 />
                 {!isCollapsed || isOpen ? (
-                  <span className="text-sm">{item.label}</span>
+                  <span className="text-base">{item.label}</span>
                 ) : null}
               </Link>
             );
@@ -338,10 +345,10 @@ export default function AdminSidebar() {
             )}
             {!isCollapsed || isOpen ? (
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-800 truncate group-hover:text-[#795548] transition-colors">
+                <p className="text-base font-semibold text-gray-800 truncate group-hover:text-[#795548] transition-colors">
                   {adminProfile?.name || "admin"}
                 </p>
-                <p className="text-xs text-gray-500 truncate">
+                <p className="text-sm text-gray-500 truncate">
                   {adminProfile?.email || "admin@trr.com"}
                 </p>
               </div>
@@ -352,7 +359,7 @@ export default function AdminSidebar() {
             onClick={handleLogout}
             disabled={isLoggingOut}
             title={isCollapsed && !isOpen ? "ออกจากระบบ" : ""}
-            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors text-sm font-medium ${isCollapsed && !isOpen ? "px-0" : ""}`}
+            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors text-base font-medium ${isCollapsed && !isOpen ? "px-0" : ""}`}
           >
             <LogOut
               size={18}

@@ -1,3 +1,4 @@
+// ===== โปรไฟล์ผู้ใช้ | User Profile =====
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -33,7 +34,7 @@ interface UserProfile {
   id: number;
   name: string;
   email: string;
-  role: "USER" | "IT" | "ADMIN";
+  role: "ไอที" | "แอดมิน";
   department?: string;
   profilePicture?: string;
   createdAt: string;
@@ -49,11 +50,11 @@ export default function ProfilePage() {
     department: "",
   });
 
-  // Profile picture upload
+  // อัปโหลดรูปโปรไฟล์ | Profile picture upload
   const [uploadingPicture, setUploadingPicture] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // LINE Linking State
+  // สถานะการเชื่อมต่อ LINE | LINE Linking State
   const [lineLink, setLineLink] = useState<LineOALink | null>(null);
   const [lineLinkLoading, setLineLinkLoading] = useState(true);
   const [linkingInProgress, setLinkingInProgress] = useState(false);
@@ -124,7 +125,7 @@ export default function ProfilePage() {
       if (response.ok) {
         const data = await response.json();
         if (data.linkingUrl) {
-          // Open LINE linking in new tab
+          // เปิดหน้าต่างใหม่เพื่อเชื่อมต่อ LINE | Open new window to link LINE
           window.open(data.linkingUrl, "_blank");
         }
       }
@@ -324,7 +325,6 @@ export default function ProfilePage() {
                   />
                 ) : (
                   <div className="flex items-center gap-3 px-4 py-3 bg-[#EEEEEE] rounded-lg">
-                    <User size={20} className="text-gray-500" />
                     <span className="text-gray-700">{profile.name}</span>
                   </div>
                 )}
@@ -336,35 +336,11 @@ export default function ProfilePage() {
                   อีเมล
                 </label>
                 <div className="flex items-center gap-3 px-4 py-3 bg-[#EEEEEE] rounded-lg">
-                  <Mail size={20} className="text-gray-500" />
                   <span className="text-gray-700">{profile.email}</span>
                 </div>
               </div>
 
-              {/* Department */}
-              <div>
-                <label className="block text-lg font-medium text-gray-800 mb-2">
-                  แผนก
-                </label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    value={editData.department}
-                    onChange={(e) =>
-                      setEditData({ ...editData, department: e.target.value })
-                    }
-                    placeholder="ไม่ระบุ"
-                    className="w-full px-4 py-3 bg-[#EEEEEE] border-none rounded-lg focus:ring-2 focus:ring-[#4A3B32]"
-                  />
-                ) : (
-                  <div className="flex items-center gap-3 px-4 py-3 bg-[#EEEEEE] rounded-lg">
-                    <Building size={20} className="text-gray-500" />
-                    <span className="text-gray-700">
-                      {profile.department || "ไม่ระบุ"}
-                    </span>
-                  </div>
-                )}
-              </div>
+          
 
               {/* Role */}
               <div>
@@ -372,14 +348,12 @@ export default function ProfilePage() {
                   บทบาท
                 </label>
                 <div className="flex items-center gap-3 px-4 py-3 bg-[#EEEEEE] rounded-lg">
-                  <Shield size={20} className="text-gray-500" />
-                  <span className="bg-[#C8E6C9] text-gray-800 text-sm px-3 py-1 rounded-full font-medium">
+                  <span className="text-gray-700">
                     {profile.role}
                   </span>
                 </div>
               </div>
             </div>
-
             {/* Save Button */}
             {isEditing && (
               <div className="mt-8 flex gap-3 justify-end">
@@ -423,7 +397,7 @@ export default function ProfilePage() {
                 <span className="text-gray-700">วันที่สร้างบัญชี</span>
                 <span className="text-gray-900 font-medium">
                   {new Date(profile.createdAt)
-                    .toLocaleString("th-TH")
+                    .toLocaleString("th-TH")                  
                     .replace(",", "")}
                 </span>
               </div>
@@ -436,7 +410,7 @@ export default function ProfilePage() {
         </div>
 
         {/* LINE Account Linking */}
-        {(profile.role === "IT" || profile.role === "ADMIN") && (
+        {(profile.role === "ไอที" || profile.role === "แอดมิน") && (
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden relative">
             {/* Curved Green Accent */}
             <div className="absolute left-0 top-0 bottom-0 w-3">

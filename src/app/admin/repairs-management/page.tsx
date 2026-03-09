@@ -1,4 +1,4 @@
-// ===== จัดการใบแจ้งซ่อม | Repair Management (Admin) =====
+// ===== จัดการข้อมูลรายการแจ้งซ่อม =====
 "use client";
 
 import {
@@ -9,7 +9,7 @@ import {
   useRef,
   useMemo,
 } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
@@ -18,12 +18,17 @@ import {
   Play,
   Pause,
   Download,
+  Search,
+  Trash2,
+  ExternalLink,
+  Loader2,
+  AlertTriangle,
+  CalendarDays,
+  X,
 } from "lucide-react";
 import { apiFetch } from "@/services/api";
-import { userService, User as UserType } from "@/services/userService";
-import CalendarPop from "../../../components/CalendarPop";
+import CalendarPop from "@/components/CalendarPop";
 import Loading from "@/components/Loading";
-import * as XLSX from "xlsx";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import Swal from "sweetalert2";
@@ -53,26 +58,41 @@ const statusLabels: Record<string, string> = {
   IN_PROGRESS: "กำลังดำเนินการ",
   COMPLETED: "เสร็จสิ้น",
   CANCELLED: "ยกเลิก",
+  ASSIGNED: "มอบหมายแล้ว",
+  WAITING_PARTS: "รออะไหล่",
 };
 
-function AdminRepairsContent() {
-  const searchParams = useSearchParams();
+const urgencyLabels: Record<string, string> = {
+  NORMAL: "ปกติ",
+  URGENT: "ด่วน",
+  CRITICAL: "ด่วนที่สุด",
+};
+
+function RepairRecordsManagementContent() {
   const router = useRouter();
+
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<UserType | null>(null);
-  const [showMyTasksOnly, setShowMyTasksOnly] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeletePanel, setShowDeletePanel] = useState(false);
+  const [deleteStartDate, setDeleteStartDate] = useState<Date | null>(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return d;
+  });
+  const [deleteEndDate, setDeleteEndDate] = useState<Date | null>(new Date());
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
-  const [countdown, setCountdown] = useState(15); // 15 seconds refresh
+  const [countdown, setCountdown] = useState(15);
+
+  // Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [filterPriority, setFilterPriority] = useState("all");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [filterUrgency, setFilterUrgency] = useState("all");
 
-  // Date Filtering State
+  // Date Filtering (tabs style like repairs page)
+  const [filter, setFilter] = useState("all");
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     const year = today.getFullYear();
@@ -80,58 +100,19 @@ function AdminRepairsContent() {
     const day = String(today.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   });
-  const [filter, setFilter] = useState("all");
 
-  const [filterDate, setFilterDate] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState<string>("all");
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(15);
 
+  // Selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Reset pagination and selection when search term changes
   useEffect(() => {
-    const status = searchParams.get("status");
-    const date = searchParams.get("date");
-    const filterParam = searchParams.get("filter");
-
-    if (status) {
-      setFilterStatus(status);
-    } else {
-      setFilterStatus("all");
-    }
-
-    if (date) {
-      setFilterDate(date);
-      setSelectedDate(date);
-    } else {
-      setFilterDate(null);
-      // Keep selectedDate as today by default if initialized,
-      // but if we want to reset when null:
-      const today = new Date();
-      setSelectedDate(
-        `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`,
-      );
-    }
-
-    if (filterParam) {
-      setFilterType(filterParam);
-      setFilter(filterParam);
-    } else {
-      setFilterType("all");
-      setFilter("all");
-    }
-  }, [searchParams]);
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const userId = localStorage.getItem("userId");
-        if (userId) {
-          const user = await userService.getUserById(parseInt(userId));
-          setCurrentUser(user);
-        }
-      } catch (error) {
-        console.error("Failed to fetch user:", error);
-      }
-    };
-    fetchUser();
-  }, []);
+    setCurrentPage(1);
+    setSelectedIds(new Set());
+  }, [searchTerm, filterStatus, filterUrgency, filter, selectedDate]);
 
   const fetchRepairs = useCallback(async (showLoading = true) => {
     try {
@@ -141,10 +122,15 @@ function AdminRepairsContent() {
       const data = await apiFetch("/api/repairs");
       setRepairs((data as Repair[]) || []);
       setLastUpdated(new Date());
+      setCurrentPage(1);
     } catch (err) {
-      console.error("Error fetching repairs:", err);
+      Swal.fire({
+        icon: "error",
+        title: "เกิดข้อผิดพลาด",
+        text: "ไม่สามารถโหลดข้อมูลรายการแจ้งซ่อมได้",
+      });
     } finally {
-      if (showLoading) setLoading(false);
+      setLoading(false);
       setIsRefreshing(false);
     }
   }, []);
@@ -153,7 +139,7 @@ function AdminRepairsContent() {
     fetchRepairs();
   }, [fetchRepairs]);
 
-  // Auto-refresh logic - decoupled countdown from fetch
+  // Auto-refresh logic
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -166,9 +152,7 @@ function AdminRepairsContent() {
       setCountdown(15);
       refreshTimerRef.current = setInterval(() => {
         setCountdown((prev) => {
-          if (prev <= 1) {
-            return 0; // Signal to fetch
-          }
+          if (prev <= 1) return 0;
           return prev - 1;
         });
       }, 1000);
@@ -181,7 +165,6 @@ function AdminRepairsContent() {
     };
   }, [autoRefreshEnabled]);
 
-  // Trigger fetch when countdown reaches 0
   useEffect(() => {
     if (countdown === 0 && autoRefreshEnabled) {
       fetchRepairs(false).then(() => {
@@ -190,6 +173,7 @@ function AdminRepairsContent() {
     }
   }, [countdown, autoRefreshEnabled, fetchRepairs]);
 
+  // Date range helpers
   const getDateRangeInfo = () => {
     const target = new Date(selectedDate);
     const formatThai = (d: Date) =>
@@ -205,7 +189,7 @@ function AdminRepairsContent() {
         rangeText: formatThai(target),
       };
     } else if (filter === "week") {
-      const day = target.getDay(); // 0=Sun, 1=Mon...
+      const day = target.getDay();
       const diffToMonday = day === 0 ? -6 : 1 - day;
       const start = new Date(target);
       start.setDate(target.getDate() + diffToMonday);
@@ -225,90 +209,267 @@ function AdminRepairsContent() {
     }
   };
 
-  const getUrgencyLabel = (u: string) => {
-    const labels: any = {
-      NORMAL: "ปกติ",
-      URGENT: "ด่วน",
-      CRITICAL: "ด่วนที่สุด",
-    };
-    return labels[u] || u;
+  // Filtering
+  const filteredRepairs = useMemo(() => {
+    return repairs.filter((item) => {
+      // Text search
+      const term = searchTerm.toLowerCase();
+      const matchesSearch =
+        item.ticketCode.toLowerCase().includes(term) ||
+        item.problemTitle?.toLowerCase().includes(term) ||
+        item.reporterName?.toLowerCase().includes(term) ||
+        item.location?.toLowerCase().includes(term);
+
+      // Status
+      const matchesStatus =
+        filterStatus === "all" || item.status === filterStatus;
+
+      // Urgency
+      const matchesUrgency =
+        filterUrgency === "all" || item.urgency === filterUrgency;
+
+      // Date
+      let matchesDate = true;
+      if (filter !== "all") {
+        const createdAt = new Date(item.createdAt);
+        const targetDate = new Date(selectedDate);
+
+        if (filter === "day") {
+          matchesDate = createdAt.toDateString() === targetDate.toDateString();
+        } else if (filter === "week") {
+          const day = targetDate.getDay();
+          const diffToMonday = day === 0 ? -6 : 1 - day;
+          const start = new Date(targetDate);
+          start.setDate(targetDate.getDate() + diffToMonday);
+          start.setHours(0, 0, 0, 0);
+          const end = new Date(start);
+          end.setDate(start.getDate() + 6);
+          end.setHours(23, 59, 59, 999);
+          matchesDate = createdAt >= start && createdAt <= end;
+        } else if (filter === "month") {
+          matchesDate =
+            createdAt.getMonth() === targetDate.getMonth() &&
+            createdAt.getFullYear() === targetDate.getFullYear();
+        }
+      }
+
+      return matchesSearch && matchesStatus && matchesUrgency && matchesDate;
+    });
+  }, [repairs, searchTerm, filterStatus, filterUrgency, filter, selectedDate]);
+
+  const totalPages = Math.ceil(filteredRepairs.length / itemsPerPage);
+  const paginatedRepairs = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredRepairs.slice(start, start + itemsPerPage);
+  }, [filteredRepairs, currentPage, itemsPerPage]);
+
+  const calendarDate = useMemo(() => {
+    const [y, m, d] = selectedDate.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }, [selectedDate]);
+
+  // ===== ACTION HANDLERS =====
+
+  const handleDelete = async (id: string, ticketCode: string) => {
+    const result = await Swal.fire({
+      title: "ยืนยันการลบ?",
+      text: `คุณต้องการลบรายการแจ้งซ่อมรหัส ${ticketCode} ใช่หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "ใช่, ลบเลย",
+      cancelButtonText: "ยกเลิก",
+    });
+
+    if (result.isConfirmed) {
+      try {
+        await apiFetch(`/api/repairs/${id}`, { method: "DELETE" });
+        Swal.fire({
+          icon: "success",
+          title: "ลบข้อมูลสำเร็จ",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+        fetchRepairs(false);
+      } catch (err) {
+        Swal.fire({
+          icon: "error",
+          title: "เกิดข้อผิดพลาด",
+          text: "ไม่สามารถลบข้อมูลได้",
+        });
+      }
+    }
   };
 
-  const formatDisplayDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("th-TH", {
-      day: "numeric",
-      month: "2-digit",
-      year: "numeric",
+  // Count repairs in the delete date range
+  const deleteRangeCount = useMemo(() => {
+    if (!deleteStartDate || !deleteEndDate) return 0;
+    const start = new Date(deleteStartDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(deleteEndDate);
+    end.setHours(23, 59, 59, 999);
+    return repairs.filter((r) => {
+      const d = new Date(r.createdAt);
+      return d >= start && d <= end;
+    }).length;
+  }, [repairs, deleteStartDate, deleteEndDate]);
+
+  const handleBulkDelete = async () => {
+    if (!deleteStartDate || !deleteEndDate) return;
+    if (deleteRangeCount === 0) {
+      Swal.fire({ icon: "info", title: "ไม่พบข้อมูลในช่วงที่เลือก" });
+      return;
+    }
+
+    const startDate = new Date(deleteStartDate);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(deleteEndDate);
+    endDate.setHours(23, 59, 59, 999);
+
+    const formatThai = (d: Date) =>
+      d.toLocaleDateString("th-TH", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+
+    const result = await Swal.fire({
+      title: "⚠️ ยืนยันการล้างข้อมูล",
+      html: `<div style="text-align:left; font-size:14px; line-height:1.8;">
+        <p>คุณกำลังจะ <b style="color:#dc2626;">ลบข้อมูลทั้งหมด</b> ในช่วง:</p>
+        <p style="background:#fef2f2; padding:8px 12px; border-radius:8px; margin:8px 0; text-align:center; font-weight:bold; color:#dc2626;">
+          ${formatThai(startDate)}&nbsp;—&nbsp;${formatThai(endDate)}
+        </p>
+        <p style="color:#6b7280; font-size:13px;">พบข้อมูล <b>${deleteRangeCount}</b> รายการในช่วงนี้</p>
+        <p style="color:#dc2626; font-size:13px; margin-top:4px;">การดำเนินการนี้ไม่สามารถย้อนกลับได้!</p>
+      </div>`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "ยืนยัน ลบทั้งหมด",
+      cancelButtonText: "ยกเลิก",
+      input: "text",
+      inputPlaceholder: 'พิมพ์ "ยืนยัน" เพื่อดำเนินการ',
+      inputValidator: (value) => {
+        if (value !== "ยืนยัน") {
+          return 'กรุณาพิมพ์ "ยืนยัน"';
+        }
+      },
+    });
+
+    if (result.isConfirmed) {
+      try {
+        setIsDeleting(true);
+        Swal.fire({
+          title: "กำลังลบข้อมูล...",
+          text: "กรุณารอสักครู่",
+          allowOutsideClick: false,
+          didOpen: () => Swal.showLoading(),
+        });
+
+        const params = new URLSearchParams();
+        params.append("startDate", startDate.toISOString());
+        params.append("endDate", endDate.toISOString());
+
+        const response: any = await apiFetch(
+          `/api/repairs/bulk-delete/by-date?${params.toString()}`,
+          { method: "DELETE" },
+        );
+
+        Swal.fire({
+          icon: "success",
+          title: "ล้างข้อมูลสำเร็จ",
+          text: `ลบข้อมูลทั้งหมด ${response.count} รายการ`,
+        });
+        setShowDeletePanel(false);
+        fetchRepairs(true);
+      } catch (err) {
+        Swal.fire({
+          icon: "error",
+          title: "เกิดข้อผิดพลาด",
+          text: "ไม่สามารถล้างข้อมูลแบบกลุ่มได้",
+        });
+      } finally {
+        setIsDeleting(false);
+      }
+    }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
     });
   };
 
-  const filteredRepairs = repairs.filter((item) => {
-    const matchesSearch =
-      item.ticketCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.problemTitle?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.reporterName?.toLowerCase().includes(searchTerm.toLowerCase());
+  const handleToggleSelectAll = () => {
+    if (
+      selectedIds.size === paginatedRepairs.length &&
+      paginatedRepairs.length > 0
+    ) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(paginatedRepairs.map((r) => r.id)));
+    }
+  };
 
-    const matchesStatus =
-      filterStatus === "all"
-        ? true
-        : filterStatus === "TODAY"
-          ? new Date(item.createdAt).toDateString() ===
-            new Date().toDateString()
-          : item.status === filterStatus;
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
 
-    // Date filtering
-    let matchesDate = true;
-    if (filter !== "all") {
-      const createdAt = new Date(item.createdAt);
-      const targetDate = new Date(selectedDate);
+    const result = await Swal.fire({
+      title: "ยืนยันการลบรายการที่เลือก?",
+      text: `คุณกำลังจะลบรายการแจ้งซ่อมจำนวน ${selectedIds.size} รายการ ใช่หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "ใช่, ลบเลย",
+      cancelButtonText: "ยกเลิก",
+    });
 
-      if (filter === "day") {
-        matchesDate = createdAt.toDateString() === targetDate.toDateString();
-      } else if (filter === "week") {
-        // Calendar week: Monday → Sunday
-        const day = targetDate.getDay(); // 0=Sun, 1=Mon...
-        const diffToMonday = day === 0 ? -6 : 1 - day;
-        const start = new Date(targetDate);
-        start.setDate(targetDate.getDate() + diffToMonday);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(start);
-        end.setDate(start.getDate() + 6);
-        end.setHours(23, 59, 59, 999);
+    if (result.isConfirmed) {
+      try {
+        Swal.fire({
+          title: "กำลังลบข้อมูล...",
+          text: "กรุณารอสักครู่",
+          allowOutsideClick: false,
+          didOpen: () => Swal.showLoading(),
+        });
 
-        matchesDate = createdAt >= start && createdAt <= end;
-      } else if (filter === "month") {
-        matchesDate =
-          createdAt.getMonth() === targetDate.getMonth() &&
-          createdAt.getFullYear() === targetDate.getFullYear();
+        await apiFetch("/api/repairs/bulk-delete/by-ids", {
+          method: "DELETE",
+          body: JSON.stringify({
+            ids: Array.from(selectedIds).map((id) => Number(id)),
+          }),
+        });
+
+        Swal.fire({
+          icon: "success",
+          title: "ลบข้อมูลสำเร็จ",
+          timer: 1500,
+          showConfirmButton: false,
+        });
+        setSelectedIds(new Set());
+        fetchRepairs(false);
+      } catch (err) {
+        Swal.fire({
+          icon: "error",
+          title: "เกิดข้อผิดพลาด",
+          text: "ไม่สามารถลบข้อมูลแบบกลุ่มได้",
+        });
       }
     }
-
-    const matchesPriority =
-      filterPriority === "all" || item.urgency === filterPriority;
-
-    // Filter by assignee if "My Tasks" is checked
-    const matchesAssignee = showMyTasksOnly
-      ? currentUser && item.assignees?.some((a) => a.user.id === currentUser.id)
-      : true;
-
-    return (
-      matchesSearch &&
-      matchesStatus &&
-      matchesPriority &&
-      matchesAssignee &&
-      matchesDate
-    );
-  });
-
-  const totalPages = Math.ceil(filteredRepairs.length / itemsPerPage);
-  const paginatedRepairs = filteredRepairs.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage,
-  );
+  };
 
   const handleExportExcel = async () => {
-    if (repairs.length === 0) {
+    if (filteredRepairs.length === 0) {
       Swal.fire({ icon: "info", title: "ไม่มีข้อมูลสำหรับส่งออก" });
       return;
     }
@@ -318,16 +479,13 @@ function AdminRepairsContent() {
         title: "กำลังเตรียมรายงาน...",
         text: "ระบบกำลังจัดรูปแบบไฟล์ Excel",
         allowOutsideClick: false,
-        didOpen: () => {
-          Swal.showLoading();
-        },
+        didOpen: () => Swal.showLoading(),
       });
 
       const { periodLabel, rangeText } = getDateRangeInfo();
       const workbook = new ExcelJS.Workbook();
       const sheet = workbook.addWorksheet("รายการแจ้งซ่อม");
 
-      // --- Styles ---
       const headerFill: ExcelJS.Fill = {
         type: "pattern",
         pattern: "solid",
@@ -349,11 +507,22 @@ function AdminRepairsContent() {
         right: { style: "thin" },
       };
 
-      // --- Content ---
+      const headers = [
+        "รหัส",
+        "วันที่แจ้ง",
+        "ปัญหา",
+        "สถานที่",
+        "ผู้แจ้ง",
+        "แผนก",
+        "ความเร่งด่วน",
+        "สถานะ",
+        "ช่างผู้รับผิดชอบ",
+      ];
+
       // Title & Meta
       const titleRow = sheet.addRow(["รายงานสรุปรายการแจ้งซ่อม"]);
       titleRow.font = { size: 16, bold: true, color: { argb: "FF1E3A8A" } };
-      sheet.mergeCells(1, 1, 1, 6);
+      sheet.mergeCells(1, 1, 1, 9);
       sheet.addRow([]);
 
       const addMetaRow = (label: string, value: any) => {
@@ -368,15 +537,6 @@ function AdminRepairsContent() {
       addMetaRow("จำนวนทั้งหมด", filteredRepairs.length + " รายการ");
       sheet.addRow([]);
 
-      // Table Header
-      const headers = [
-        "รหัส",
-        "วันที่/เวลา",
-        "ปัญหา",
-        "สถานที่",
-        "ความเร่งด่วน",
-        "สถานะ",
-      ];
       const headerRow = sheet.addRow(headers);
       headerRow.eachCell((cell) => {
         cell.fill = headerFill;
@@ -386,28 +546,28 @@ function AdminRepairsContent() {
       });
 
       sheet.columns = [
-        { key: "id", width: 18 },
-        { key: "date", width: 22 },
+        { key: "code", width: 18 },
+        { key: "date", width: 20 },
         { key: "title", width: 35 },
         { key: "loc", width: 25 },
-        { key: "urgency", width: 18 },
+        { key: "reporter", width: 25 },
+        { key: "dept", width: 20 },
+        { key: "urgency", width: 15 },
         { key: "status", width: 15 },
+        { key: "assignees", width: 30 },
       ];
 
-      // Data Rows
       filteredRepairs.forEach((repair, index) => {
         const row = sheet.addRow([
           repair.ticketCode,
-          new Date(repair.createdAt).toLocaleDateString("th-TH") +
-            " " +
-            new Date(repair.createdAt).toLocaleTimeString("th-TH", {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
+          new Date(repair.createdAt).toLocaleString("th-TH"),
           repair.problemTitle,
           repair.location,
-          getUrgencyLabel(repair.urgency),
+          repair.reporterName,
+          repair.reporterDepartment || "-",
+          urgencyLabels[repair.urgency] || repair.urgency,
           statusLabels[repair.status] || repair.status,
+          repair.assignees?.map((a) => a.user.name).join(", ") || "-",
         ]);
 
         if (index % 2 === 1) {
@@ -425,14 +585,14 @@ function AdminRepairsContent() {
         });
 
         // Urgency Color
-        const uCell = row.getCell(5);
+        const uCell = row.getCell(7);
         if (repair.urgency === "CRITICAL")
           uCell.font = { color: { argb: "FFEF4444" }, bold: true };
         else if (repair.urgency === "URGENT")
           uCell.font = { color: { argb: "FFF59E0B" }, bold: true };
 
         // Status Color
-        const sCell = row.getCell(6);
+        const sCell = row.getCell(8);
         if (repair.status === "COMPLETED")
           sCell.font = { color: { argb: "FF10B981" }, bold: true };
         else if (repair.status === "IN_PROGRESS")
@@ -441,12 +601,11 @@ function AdminRepairsContent() {
           sCell.font = { color: { argb: "FFEF4444" }, bold: true };
       });
 
-      // --- Export ---
       const buffer = await workbook.xlsx.writeBuffer();
       const dateSuffix = new Date().toISOString().split("T")[0];
       saveAs(
         new Blob([buffer]),
-        `RepairReport_${periodLabel}_${dateSuffix}.xlsx`,
+        `RepairRecords_${periodLabel}_${dateSuffix}.xlsx`,
       );
 
       Swal.close();
@@ -458,119 +617,36 @@ function AdminRepairsContent() {
         showConfirmButton: false,
       });
     } catch (error) {
-      console.error("Export error:", error);
-      Swal.fire({
-        icon: "error",
-        title: "เกิดข้อผิดพลาดในการส่งออกไฟล์ Excel",
-      });
+      Swal.fire({ icon: "error", title: "เกิดข้อผิดพลาดในการส่งออก" });
     }
   };
 
-  // Memoize the Date object so CalendarPop doesn't get a new reference every render
-  const calendarDate = useMemo(() => {
-    const [y, m, d] = selectedDate.split("-").map(Number);
-    return new Date(y, m - 1, d);
-  }, [selectedDate]);
-
-  if (loading) {
-    return <Loading />;
-  }
+  if (loading) return <Loading />;
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-[1400px] mx-auto space-y-6">
-        {/* Filter Row Indicator */}
-        {filterDate && filterType !== "all" && (
-          <div className="bg-[#5D2E1F]/5 border border-[#5D2E1F]/10 px-4 py-2 rounded-lg flex items-center justify-between">
-            <div className="flex items-center gap-2 text-[#5D2E1F]">
-              <Clock size={16} />
-              <span className="text-sm">
-                กำลังแสดงข้อมูล:{" "}
-                <strong>
-                  {filterType === "day"
-                    ? "รายวัน"
-                    : filterType === "week"
-                      ? "รายสัปดาห์"
-                      : "รายเดือน"}
-                </strong>
-                ประจำวันที่ <strong>{formatDisplayDate(filterDate)}</strong>
-              </span>
-            </div>
-            <button
-              onClick={() => {
-                setFilterDate(null);
-                setFilterType("all");
-                setFilter("all");
-                const now = new Date();
-                setSelectedDate(
-                  `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`,
-                );
-                setFilterStatus("all");
-                router.push("/admin/repairs");
-              }}
-              className="text-sm text-[#5D2E1F] font-medium hover:underline"
-            >
-              ล้างตัวกรอง
-            </button>
-          </div>
-        )}
-
         {/* Filters Card */}
         <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 space-y-3">
-          {/* Row 1: Search + My Tasks + Export */}
+          {/* Row 1: Search + Real-time + Actions */}
           <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
             <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3 items-stretch sm:items-center flex-1">
               {/* Search */}
               <div className="relative flex-1 max-w-full sm:max-w-sm">
+                <Search
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  size={16}
+                />
                 <input
                   type="text"
-                  placeholder="ค้นหาชื่อผู้แจ้ง/เลขรหัส"
+                  placeholder="ค้นหา รหัส, ปัญหา, ผู้แจ้ง, สถานที่..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-4 pr-20 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:bg-white transition-all"
+                  className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 focus:bg-white transition-all"
                 />
-                {/* <button className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300">
-                  ค้นหา
-                </button> */}
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {/* My Tasks Toggle */}
-                <button
-                  onClick={() => setShowMyTasksOnly(!showMyTasksOnly)}
-                  className={`px-3 py-2 border rounded-lg text-sm font-medium transition-colors flex items-center gap-2 whitespace-nowrap ${
-                    showMyTasksOnly
-                      ? "bg-amber-50 text-amber-700 border-amber-200"
-                      : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  <div
-                    className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                      showMyTasksOnly
-                        ? "bg-amber-500 border-amber-500"
-                        : "border-gray-400"
-                    }`}
-                  >
-                    {showMyTasksOnly && (
-                      <svg
-                        className="w-3 h-3 text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={3}
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    )}
-                  </div>
-                  <span className="xs:inline hidden">งานของฉัน</span>
-                  <span className="xs:hidden inline">งานฉัน</span>
-                </button>
-
                 {/* Real-time Status Pill */}
                 <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-full">
                   <span className="relative flex h-2 w-2">
@@ -632,20 +708,114 @@ function AdminRepairsContent() {
               </div>
             </div>
 
-            {/* Export Button */}
-            <button
-              onClick={handleExportExcel}
-              className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-sm hover:bg-gray-50 font-medium flex items-center justify-center gap-2 whitespace-nowrap"
-            >
-              <Download size={16} className="text-gray-500" />
-              <span>Export</span>
-            </button>
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2">
+              {selectedIds.size > 0 && (
+                <button
+                  onClick={handleDeleteSelected}
+                  className="px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg text-sm font-medium hover:bg-red-100 flex items-center gap-2 transition-all shadow-sm"
+                >
+                  <Trash2 size={16} />
+                  <span>ลบที่เลือก ({selectedIds.size})</span>
+                </button>
+              )}
+              <button
+                onClick={handleExportExcel}
+                className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-sm hover:bg-gray-50 font-medium flex items-center justify-center gap-2 whitespace-nowrap"
+              >
+                <Download size={16} className="text-gray-500" />
+                <span>Export</span>
+              </button>
+              <button
+                onClick={() => setShowDeletePanel(!showDeletePanel)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 whitespace-nowrap transition-colors ${
+                  showDeletePanel
+                    ? "bg-red-100 text-red-700 border border-red-200 hover:bg-red-200"
+                    : "bg-red-600 text-white hover:bg-red-700"
+                }`}
+              >
+                {showDeletePanel ? (
+                  <>
+                    <X size={16} />
+                    ปิด
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={16} />
+                    ล้างข้อมูล
+                  </>
+                )}
+              </button>
+            </div>
           </div>
+
+          {/* Delete Panel */}
+          {showDeletePanel && (
+            <div className="bg-red-50/50 border border-red-200 rounded-xl p-4 space-y-3 animate-in">
+              <div className="flex items-center gap-2 text-red-700">
+                <AlertTriangle size={16} />
+                <span className="text-sm font-semibold">
+                  เลือกช่วงเวลาที่ต้องการลบข้อมูล
+                </span>
+              </div>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-600">
+                    ตั้งแต่วันที่
+                  </label>
+                  <CalendarPop
+                    selectedDate={deleteStartDate}
+                    onDateSelect={(d) => setDeleteStartDate(d)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-gray-600">
+                    ถึงวันที่
+                  </label>
+                  <CalendarPop
+                    selectedDate={deleteEndDate}
+                    onDateSelect={(d) => setDeleteEndDate(d)}
+                  />
+                </div>
+                <div className="flex items-center gap-3 sm:ml-4">
+                  <div className="bg-white border border-red-200 rounded-lg px-3 py-2">
+                    <span className="text-xs text-gray-500">พบข้อมูล</span>
+                    <span className="ml-1 text-lg font-bold text-red-600">
+                      {deleteRangeCount}
+                    </span>
+                    <span className="ml-1 text-xs text-gray-500">รายการ</span>
+                  </div>
+                  <button
+                    onClick={handleBulkDelete}
+                    disabled={
+                      deleteRangeCount === 0 ||
+                      isDeleting ||
+                      !deleteStartDate ||
+                      !deleteEndDate
+                    }
+                    className="px-5 py-2.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 font-medium flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        กำลังลบ...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 size={16} />
+                        ลบข้อมูลทั้งหมด
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Divider */}
           <div className="border-t border-gray-100" />
 
-          {/* Row 2: Date Filters + Status/Priority Dropdowns */}
+          {/* Row 2: Date Tabs + Status/Priority Dropdowns */}
           <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3 items-stretch sm:items-center">
             {/* Date Filtering Tabs */}
             <div className="flex flex-wrap items-center gap-2">
@@ -701,26 +871,28 @@ function AdminRepairsContent() {
                 className="px-2 py-2 border border-gray-300 rounded-lg bg-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
               >
                 <option value="all">ทุกสถานะ</option>
-                <option value="TODAY">งานวันนี้</option>
-                <option value="PENDING">รอดำเนินการ</option>
-                <option value="IN_PROGRESS">กำลังดำเนินการ</option>
-                <option value="COMPLETED">เสร็จสิ้น</option>
-                <option value="CANCELLED">ยกเลิก</option>
+                {Object.entries(statusLabels).map(([val, label]) => (
+                  <option key={val} value={val}>
+                    {label}
+                  </option>
+                ))}
               </select>
 
               {/* Priority Filter */}
               <select
-                value={filterPriority}
+                value={filterUrgency}
                 onChange={(e) => {
-                  setFilterPriority(e.target.value);
+                  setFilterUrgency(e.target.value);
                   setCurrentPage(1);
                 }}
                 className="px-2 py-2 border border-gray-300 rounded-lg bg-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
               >
-                <option value="all">ทุกความสำคัญ</option>
-                <option value="NORMAL">ปกติ</option>
-                <option value="URGENT">ด่วน</option>
-                <option value="CRITICAL">ด่วนมาก</option>
+                <option value="all">ทุกความเร่งด่วน</option>
+                {Object.entries(urgencyLabels).map(([val, label]) => (
+                  <option key={val} value={val}>
+                    {label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -731,6 +903,19 @@ function AdminRepairsContent() {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50/80">
+                <th className="px-4 py-4 w-10">
+                  <div className="flex items-center justify-center">
+                    <input
+                      type="checkbox"
+                      checked={
+                        paginatedRepairs.length > 0 &&
+                        selectedIds.size === paginatedRepairs.length
+                      }
+                      onChange={handleToggleSelectAll}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                  </div>
+                </th>
                 <th className="px-6 py-4 text-xs font-semibold text-gray-600">
                   รหัส
                 </th>
@@ -763,6 +948,19 @@ function AdminRepairsContent() {
                     router.push(`/admin/repairs/${repair.ticketCode}`)
                   }
                 >
+                  <td
+                    className="px-4 py-4"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(repair.id)}
+                        onChange={() => handleToggleSelect(repair.id)}
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </div>
+                  </td>
                   <td className="px-6 py-4">
                     <span className="text-sm font-mono text-gray-900">
                       {repair.ticketCode}
@@ -782,9 +980,14 @@ function AdminRepairsContent() {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="text-sm text-gray-900">
-                      {repair.problemTitle}
-                    </span>
+                    <div className="max-w-[250px]">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {repair.problemTitle}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {repair.reporterName}
+                      </p>
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <span className="text-sm text-gray-700">
@@ -801,11 +1004,7 @@ function AdminRepairsContent() {
                             : "bg-gray-100 text-gray-700"
                       }`}
                     >
-                      {repair.urgency === "CRITICAL"
-                        ? "ด่วนมาก"
-                        : repair.urgency === "URGENT"
-                          ? "ด่วน"
-                          : "ปกติ"}
+                      {urgencyLabels[repair.urgency] || repair.urgency}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -829,16 +1028,26 @@ function AdminRepairsContent() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div
-                      className="flex items-center justify-end gap-2"
+                      className="flex items-center justify-end gap-1"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <button
                         onClick={() =>
                           router.push(`/admin/repairs/${repair.ticketCode}`)
                         }
-                        className="p-1 text-gray-400 hover:text-gray-600"
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                        title="ดูรายละเอียด"
                       >
-                        <ChevronRight size={18} />
+                        <ExternalLink size={16} />
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleDelete(repair.id, repair.ticketCode)
+                        }
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                        title="ลบรายการนี้"
+                      >
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </td>
@@ -847,10 +1056,13 @@ function AdminRepairsContent() {
               {paginatedRepairs.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-6 py-12 text-center text-gray-500"
                   >
-                    ไม่พบรายการ
+                    <div className="flex flex-col items-center gap-2">
+                      <Search size={40} className="stroke-[1] text-gray-300" />
+                      <p className="text-sm">ไม่พบรายการที่ตรงตามเงื่อนไข</p>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -868,9 +1080,20 @@ function AdminRepairsContent() {
             >
               <div className="flex justify-between items-start mb-2">
                 <div className="flex flex-col gap-1">
-                  <span className="text-xs font-mono text-gray-500">
-                    {repair.ticketCode}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(repair.id)}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        handleToggleSelect(repair.id);
+                      }}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer mb-1"
+                    />
+                    <span className="text-xs font-mono text-gray-500">
+                      {repair.ticketCode}
+                    </span>
+                  </div>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span
                       className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
@@ -881,11 +1104,7 @@ function AdminRepairsContent() {
                             : "bg-gray-100 text-gray-700"
                       }`}
                     >
-                      {repair.urgency === "CRITICAL"
-                        ? "ด่วนมาก"
-                        : repair.urgency === "URGENT"
-                          ? "ด่วน"
-                          : "ปกติ"}
+                      {urgencyLabels[repair.urgency] || repair.urgency}
                     </span>
                     <span
                       className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
@@ -906,7 +1125,19 @@ function AdminRepairsContent() {
                     </span>
                   </div>
                 </div>
-                <ChevronRight size={18} className="text-gray-300" />
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(repair.id, repair.ticketCode);
+                    }}
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                    title="ลบ"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                  <ChevronRight size={18} className="text-gray-300" />
+                </div>
               </div>
               <p className="text-sm font-semibold text-gray-900 mb-1 leading-snug">
                 {repair.problemTitle}
@@ -920,7 +1151,10 @@ function AdminRepairsContent() {
           ))}
           {paginatedRepairs.length === 0 && (
             <div className="bg-white rounded-lg p-8 text-center text-gray-500">
-              ไม่พบรายการ
+              <div className="flex flex-col items-center gap-2">
+                <Search size={40} className="stroke-[1] text-gray-300" />
+                <p className="text-sm">ไม่พบรายการที่ตรงตามเงื่อนไข</p>
+              </div>
             </div>
           )}
         </div>
@@ -936,11 +1170,12 @@ function AdminRepairsContent() {
                   value={itemsPerPage}
                   onChange={(e) => {
                     setItemsPerPage(Number(e.target.value));
-                    setCurrentPage(1); // Reset to first page when changing page size
+                    setCurrentPage(1);
                   }}
                   className="appearance-none bg-transparent pl-2 pr-6 py-1 cursor-pointer outline-none hover:bg-gray-50 rounded"
                 >
                   <option value={10}>10</option>
+                  <option value={15}>15</option>
                   <option value={20}>20</option>
                   <option value={30}>30</option>
                   <option value={50}>50</option>
@@ -964,7 +1199,7 @@ function AdminRepairsContent() {
               </div>
             </div>
 
-            {/* Display range e.g. "1-100 of 3543" */}
+            {/* Display range */}
             <div className="font-medium text-slate-700">
               {(currentPage - 1) * itemsPerPage + 1}-
               {Math.min(currentPage * itemsPerPage, filteredRepairs.length)} of{" "}
@@ -977,7 +1212,7 @@ function AdminRepairsContent() {
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage((p) => p - 1)}
                 className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:hover:text-gray-400 transition-colors"
-                title="Previous page"
+                title="หน้าก่อน"
               >
                 <ChevronLeft size={20} />
               </button>
@@ -985,7 +1220,7 @@ function AdminRepairsContent() {
                 disabled={currentPage >= totalPages}
                 onClick={() => setCurrentPage((p) => p + 1)}
                 className="p-1 text-gray-800 hover:text-black disabled:opacity-30 disabled:hover:text-gray-800 transition-colors"
-                title="Next page"
+                title="หน้าถัดไป"
               >
                 <ChevronRight size={20} />
               </button>
@@ -997,79 +1232,10 @@ function AdminRepairsContent() {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  type,
-  isToday = false,
-  className = "",
-}: {
-  label: string;
-  value: number;
-  type: "purple" | "orange" | "green" | "red" | "blue";
-  isToday?: boolean;
-  className?: string;
-}) {
-  const styleMap: Record<string, { bg: string; iconBg: string }> = {
-    purple: {
-      bg: "bg-[#4F00FF]",
-      iconBg: "bg-[#6B46FF]",
-    },
-    orange: {
-      bg: "bg-[#FF9F00]",
-      iconBg: "bg-[#FFB733]",
-    },
-    green: {
-      bg: "bg-[#00A661]",
-      iconBg: "bg-[#33B881]",
-    },
-    red: {
-      bg: "bg-[#FF0032]",
-      iconBg: "bg-[#FF335B]",
-    },
-    blue: {
-      bg: "bg-[#2563EB]",
-      iconBg: "bg-[#3B82F6]",
-    },
-  };
-
-  const style = styleMap[type];
-
-  return (
-    <div
-      className={`relative rounded-xl p-4 ${style.bg} shadow-md flex flex-col items-center justify-center min-h-[100px] transition-transform hover:scale-[1.02] cursor-default ${className}`}
-    >
-      {isToday && (
-        <div
-          className={`absolute top-2 right-2 p-1 rounded-full ${style.iconBg} text-white`}
-        >
-          <svg
-            className="w-3 h-3"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2.5}
-              d="M7 17L17 7M17 7H7M17 7V17"
-            />
-          </svg>
-        </div>
-      )}
-      <span className="text-xs font-bold text-white/90 mb-1">{label}</span>
-      <span className="text-3xl font-black text-white tracking-tight">
-        {value}
-      </span>
-    </div>
-  );
-}
-
-export default function AdminRepairsPage() {
+export default function RepairRecordsManagementPage() {
   return (
     <Suspense fallback={<Loading />}>
-      <AdminRepairsContent />
+      <RepairRecordsManagementContent />
     </Suspense>
   );
 }
